@@ -1,21 +1,19 @@
 import streamlit as st
-from openai import OpenAI
+import google.generativeai as genai
 
-# Set webpage browser title and layout
 st.set_page_config(page_title="Global AI Assistant", layout="centered")
 
-# --- SIDEBAR INTERFACE ---
 with st.sidebar:
     st.title("Settings ⚙️")
     st.write("Configure your global cloud assistant.")
     st.divider()
     
-    # Text input for users to provide their own OpenAI API Key securely
+    # Text input for users to provide their Gemini Key securely
     api_key_input = st.text_input(
-        "Enter OpenAI API Key:", 
+        "Enter Gemini API Key:", 
         type="password",
-        placeholder="sk-...",
-        help="Paste your secret key from the OpenAI developer dashboard."
+        placeholder="AIzaSy...",
+        help="Paste your free key from Google AI Studio."
     )
     
     st.divider()
@@ -23,60 +21,54 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# --- MAIN CHAT INTERFACE ---
-st.title("Global AI Assistant 🌐")
-st.caption("Hosted on the Cloud | Powered by OpenAI GPT-4o-mini")
+st.title("My AI Assistant 🌐")
+st.caption("Hosted on the Cloud | Powered by Google Gemini 1.5 Flash (Free Tier)")
 st.divider()
 
-# Advanced system prompt for premium, precise responses
-EXPERT_SYSTEM_PROMPT = {
-    "role": "system",
-    "content": (
-        "You are an expert, high-precision AI assistant operating exactly like premium versions of Gemini and ChatGPT. "
-        "Adhere to these strict formatting and behavioral rules:\n\n"
-        "1. FACTUAL ACCURACY: Do not hallucinate. If you do not know an answer or lack real-time data, state it directly.\n"
-        "2. SCANNABILITY & CLARITY: Avoid dense blocks of text. Use clean Markdown headings (##, ###), bolding, and bullet points to ensure clarity at a glance.\n"
-        "3. TONALITY: Maintain an authentic, direct, and professional tone. Avoid unnecessary conversational fluff."
-    )
-}
-
-# Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display past chat messages
 for message in st.session_state.messages:
-    if message["role"] != "system":
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
 
-# User input box
 if user_input := st.chat_input("Ask a precise question..."):
     if not api_key_input:
-        st.error("Please enter your OpenAI API Key in the sidebar to begin chatting!")
+        st.error("Please enter your Gemini API Key in the sidebar to begin chatting!")
     else:
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.write(user_input)
 
-        # Build message payload
-        formatted_messages = [EXPERT_SYSTEM_PROMPT] + st.session_state.messages
-
-        # Generate cloud-based assistant response
         with st.chat_message("assistant"):
             with st.spinner("Analyzing via Cloud..."):
                 try:
-                    # Initialize the OpenAI cloud client with the provided key
-                    client = OpenAI(api_key=api_key_input)
+                    # Configure Gemini with the provided key
+                    genai.configure(api_key=api_key_input)
                     
-                    response = client.chat.completions.create(
-                        model="gpt-4o-mini",  # Highly efficient, fast, and cost-effective cloud model
-                        messages=formatted_messages,
-                        temperature=0.3
+                    # Set up the high-precision system instructions
+                    model = genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",
+                        system_instruction=(
+                            "You are an expert, high-precision AI assistant operating exactly like premium versions of Gemini and ChatGPT. "
+                            "Adhere to these strict rules:\n"
+                            "1. FACTUAL ACCURACY: Do not hallucinate. If you do not know an answer, state it directly.\n"
+                            "2. SCANNABILITY & CLARITY: Avoid dense blocks of text. Use clean Markdown headings, bolding, and bullet points.\n"
+                            "3. TONALITY: Maintain an authentic, direct, and professional tone."
+                        )
                     )
-                    assistant_response = response.choices[0].message.content
-                    st.write(assistant_response)
                     
+                    # Format history properly for the Gemini SDK
+                    chat_history = []
+                    for msg in st.session_state.messages[:-1]:
+                        role = "user" if msg["role"] == "user" else "model"
+                        chat_history.append({"role": role, "parts": [msg["content"]]})
+                    
+                    chat = model.start_chat(history=chat_history)
+                    response = chat.send_message(user_input)
+                    
+                    assistant_response = response.text
+                    st.write(assistant_response)
                     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
                 except Exception as e:
-                    st.error(f"API Error: Please check your secret key or billing configuration. Details: {e}")
+                    st.error(f"API Error: Please check your key configuration. Details: {e}")
