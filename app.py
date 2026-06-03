@@ -21,7 +21,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-st.title("My AI Assistant 🌐")
+st.title("Global AI Assistant 🌐")
 st.caption("Hosted on the Cloud | Powered by Google Gemini 1.5 Flash (Free Tier)")
 st.divider()
 
