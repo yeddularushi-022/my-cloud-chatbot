@@ -47,10 +47,13 @@ if user_input := st.chat_input("Ask a precise question..."):
         with st.chat_message("assistant"):
             with st.spinner("Analyzing via Cloud..."):
                 try:
-                    # Initialize client using the new SDK standard for AQ keys
-                    client = genai.Client(api_key=api_key)
+                    # Initializing with your exact project ID header from image aebe948d
+                    client = genai.Client(
+                        api_key=api_key,
+                        http_options={'headers': {'X-Goog-User-Project': 'gen-lang-client-0546112520'}}
+                    )
                     
-                    # Generate content via the production stable model
+                    # Generate response via the stable production standard
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=user_input,
@@ -59,7 +62,7 @@ if user_input := st.chat_input("Ask a precise question..."):
                     if response.text:
                         assistant_response = response.text
                     else:
-                        assistant_response = "I received an empty response. Please verify your Cloud project access."
+                        assistant_response = "I received an empty response. Please verify your Cloud project settings."
                     
                     st.write(assistant_response)
                     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
