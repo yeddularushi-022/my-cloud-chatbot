@@ -8,11 +8,10 @@ with st.sidebar:
     st.write("Configure your global cloud assistant.")
     st.divider()
     
-    # Text input for users to provide their Gemini Key securely
     api_key_input = st.text_input(
         "Enter Gemini API Key:", 
         type="password",
-        placeholder="AIzaSy...",
+        placeholder="AQ. or AIzaSy...",
         help="Paste your free key from Google AI Studio."
     )
     
@@ -22,7 +21,7 @@ with st.sidebar:
         st.rerun()
 
 st.title("Global AI Assistant 🌐")
-st.caption("Hosted on the Cloud | Powered by Google Gemini 1.5 Flash (Free Tier)")
+st.caption("Hosted on the Cloud | Powered by Google Gemini")
 st.divider()
 
 if "messages" not in st.session_state:
@@ -43,32 +42,24 @@ if user_input := st.chat_input("Ask a precise question..."):
         with st.chat_message("assistant"):
             with st.spinner("Analyzing via Cloud..."):
                 try:
-                    # Configure Gemini with the provided key
-                    genai.configure(api_key=api_key_input)
+                    # Strip any accidental whitespace
+                    clean_key = api_key_input.strip()
                     
-                    # Set up the high-precision system instructions
-                    model = genai.GenerativeModel(
-                        model_name="gemini-1.5-flash",
-                        system_instruction=(
-                            "You are an expert, high-precision AI assistant operating exactly like premium versions of Gemini and ChatGPT. "
-                            "Adhere to these strict rules:\n"
-                            "1. FACTUAL ACCURACY: Do not hallucinate. If you do not know an answer, state it directly.\n"
-                            "2. SCANNABILITY & CLARITY: Avoid dense blocks of text. Use clean Markdown headings, bolding, and bullet points.\n"
-                            "3. TONALITY: Maintain an authentic, direct, and professional tone."
-                        )
-                    )
+                    # Direct configuration call
+                    genai.configure(api_key=clean_key)
                     
-                    # Format history properly for the Gemini SDK
-                    chat_history = []
-                    for msg in st.session_state.messages[:-1]:
-                        role = "user" if msg["role"] == "user" else "model"
-                        chat_history.append({"role": role, "parts": [msg["content"]]})
+                    # Initialize model
+                    model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    chat = model.start_chat(history=chat_history)
-                    response = chat.send_message(user_input)
+                    # Generate response
+                    response = model.generate_content(user_input)
                     
-                    assistant_response = response.text
+                    if response.text:
+                        assistant_response = response.text
+                    else:
+                        assistant_response = "I received an empty response. Please verify the key has active permissions."
+                    
                     st.write(assistant_response)
                     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
                 except Exception as e:
-                    st.error(f"API Error: Please check your key configuration. Details: {e}")
+                    st.error(f"API Error: {e}")
