@@ -49,7 +49,7 @@ if user_input := st.chat_input("Ask a precise question..."):
                     genai.configure(api_key=clean_key)
                     
                     # Initialize model
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    model = genai.GenerativeModel('gemini-2.5-flash')
                     
                     # Generate response
                     response = model.generate_content(user_input)
