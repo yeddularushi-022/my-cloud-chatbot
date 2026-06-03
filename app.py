@@ -3,17 +3,22 @@ import google.generativeai as genai
 
 st.set_page_config(page_title="Global AI Assistant", layout="centered")
 
+# 1. Fetch the API key securely from Streamlit's backend secrets
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+else:
+    api_key = None
+
 with st.sidebar:
     st.title("Settings ⚙️")
     st.write("Configure your global cloud assistant.")
     st.divider()
     
-    api_key_input = st.text_input(
-        "Enter Gemini API Key:", 
-        type="password",
-        placeholder="AQ. or AIzaSy...",
-        help="Paste your free key from Google AI Studio."
-    )
+    # Simple status indicator for your users
+    if api_key:
+        st.success("Cloud Connection: Active ✅")
+    else:
+        st.error("Cloud Connection: Missing Key ❌")
     
     st.divider()
     if st.button("Clear Conversation 🗑️", use_container_width=True):
@@ -32,8 +37,8 @@ for message in st.session_state.messages:
         st.write(message["content"])
 
 if user_input := st.chat_input("Ask a precise question..."):
-    if not api_key_input:
-        st.error("Please enter your Gemini API Key in the sidebar to begin chatting!")
+    if not api_key:
+        st.error("System Error: API Key is not configured in Streamlit Secrets!")
     else:
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
@@ -42,13 +47,10 @@ if user_input := st.chat_input("Ask a precise question..."):
         with st.chat_message("assistant"):
             with st.spinner("Analyzing via Cloud..."):
                 try:
-                    # Strip any accidental whitespace
-                    clean_key = api_key_input.strip()
+                    # Configure using the hidden backend key
+                    genai.configure(api_key=api_key.strip())
                     
-                    # Direct configuration call
-                    genai.configure(api_key=clean_key)
-                    
-                    # Initialize model
+                    # Initialize production model
                     model = genai.GenerativeModel('gemini-2.5-flash')
                     
                     # Generate response
@@ -57,7 +59,7 @@ if user_input := st.chat_input("Ask a precise question..."):
                     if response.text:
                         assistant_response = response.text
                     else:
-                        assistant_response = "I received an empty response. Please verify the key has active permissions."
+                        assistant_response = "I received an empty response. Please verify the key parameters."
                     
                     st.write(assistant_response)
                     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
