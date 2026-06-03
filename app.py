@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="Aether AI - Global Cloud Assistant", 
     page_icon="⚡", 
     layout="centered",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 st.markdown("""
@@ -61,28 +61,6 @@ with st.sidebar:
             st.error("Missing Authentication Configuration Box.")
             
     st.divider()
-    
-    # ADVANCED HARDWARE INPUT CHANNELS
-    st.markdown("### 🎛️ HARDWARE CAPTURE")
-    enable_camera = st.checkbox("📷 Enable System Camera Feed")
-    
-    camera_file = None
-    if enable_camera:
-        camera_file = st.camera_input("Take an instant snapshot")
-        
-    st.markdown("### 🎙️ VOICE RECORDER MODULE")
-    voice_file = st.audio_input("Record audio or speech queries")
-
-    st.divider()
-    
-    with st.expander("🛠️ Workspace System Details"):
-        st.write("""
-        * **Engine Standard:** Google Gemini 2.5 Flash
-        * **Interface Frame:** Streamlit Web Engine Pro
-        * **Device Target:** Responsive Screen Adaptive (Mobile Sync Enabled)
-        """)
-        
-    st.divider()
     if st.button("🗑️ Clear Chat Terminal Workspace", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -90,6 +68,46 @@ with st.sidebar:
 # ---- MAIN INTERFACE AREA ----
 st.markdown("<h1 class='main-title'>Aether AI Assistant ⚡</h1>", unsafe_allow_html=True)
 st.markdown("<p style='font-size:1.1rem; opacity:0.8; margin-top:0px;'>Next-Gen Intelligent Cloud Command Interface</p>", unsafe_allow_html=True)
+st.divider()
+
+# MULTIMEDIA CAPTURE OPTIONS (Separated Choosable Tabs)
+st.markdown("### 🛠️ Choose Input Type")
+tab_text, tab_photo, tab_camera, tab_voice = st.tabs([
+    "💬 Text Prompt", 
+    "🖼️ Upload Photo", 
+    "📷 Take Picture", 
+    "🎙️ Record Voice"
+])
+
+active_media = None
+media_mime = ""
+fallback_prompt = ""
+
+with tab_text:
+    st.caption("Type your message directly into the chat bar at the bottom.")
+
+with tab_photo:
+    uploaded_file = st.file_uploader("Choose a photo from gallery", type=["png", "jpg", "jpeg"], key="photo_input")
+    if uploaded_file:
+        active_media = uploaded_file.getvalue()
+        media_mime = uploaded_file.type
+        fallback_prompt = "Analyze this uploaded photo asset."
+        st.image(active_media, width=250, caption="Photo staged")
+
+with tab_camera:
+    camera_file = st.camera_input("Capture instant camera snapshot", key="camera_input")
+    if camera_file:
+        active_media = camera_file.getvalue()
+        media_mime = "image/jpeg"
+        fallback_prompt = "Analyze this captured camera picture snapshot."
+
+with tab_voice:
+    voice_file = st.audio_input("Record voice or speech instructions", key="voice_input")
+    if voice_file:
+        active_media = voice_file.getvalue()
+        media_mime = "audio/wav"
+        fallback_prompt = "Analyze and process this recorded audio voice message clip."
+
 st.divider()
 
 if "messages" not in st.session_state:
@@ -100,44 +118,20 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=avatar_style):
         st.write(message["content"])
 
-# Multi-functional chat bar accepting files and speech uploads natively
-chat_trigger = st.chat_input(
-    "Enter text, drop images, or voice record...",
-    accept_file=True,
-    file_type=["png", "jpg", "jpeg"]
-)
-
-if chat_trigger:
-    user_text = chat_trigger.text if chat_trigger.text else ""
-    uploaded_image_list = chat_trigger.files if "files" in chat_trigger else []
+# Bottom Input Chat Execution Bar
+if user_input := st.chat_input("Ask a precise question or provide instructions..."):
     
-    # Consolidate alternative capture modes
-    active_media = None
-    media_mime = ""
-    
-    if uploaded_image_list:
-        active_media = uploaded_image_list[0].getvalue()
-        media_mime = uploaded_image_list[0].type
-    elif camera_file:
-        active_media = camera_file.getvalue()
-        media_mime = "image/jpeg"
-    elif voice_file:
-        active_media = voice_file.getvalue()
-        media_mime = "audio/wav"
-
-    # Fallback placeholder if only media was supplied without text notes
-    if not user_text and active_media:
-        if "audio" in media_mime:
-            user_text = "Analyze this recorded audio voice message clip."
-        else:
-            user_text = "Analyze this captured image asset."
+    # Use fallback prompt string if user sends media asset without adding any text
+    final_text_prompt = user_input if user_input.strip() else fallback_prompt
+    if not final_text_prompt and active_media:
+        final_text_prompt = fallback_prompt
 
     if not api_key:
         st.error("Infrastructure Authorization Error: Backend target key string layer is undefined.")
     else:
-        st.session_state.messages.append({"role": "user", "content": user_text})
+        st.session_state.messages.append({"role": "user", "content": final_text_prompt})
         with st.chat_message("user", avatar="👤"):
-            st.write(user_text)
+            st.write(final_text_prompt)
             if active_media and "image" in media_mime:
                 st.image(active_media, width=300)
             elif active_media and "audio" in media_mime:
@@ -154,10 +148,10 @@ if chat_trigger:
                     if active_media:
                         contents_payload = [
                             types.Part.from_bytes(data=active_media, mime_type=media_mime),
-                            user_text
+                            final_text_prompt
                         ]
                     else:
-                        contents_payload = user_text
+                        contents_payload = final_text_prompt
                     
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
