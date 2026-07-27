@@ -32,8 +32,6 @@ st.markdown("<div class='title-container'><h1 class='main-title'>Aether AI</h1><
 
 # Fetch API Key from Streamlit Secrets
 api_key = st.secrets["GEMINI_API_KEY"].strip() if "GEMINI_API_KEY" in st.secrets else None
-
-# Initialize GenAI Client
 client = genai.Client(api_key=api_key) if api_key else None
 
 # --- STATE INITIALIZATION ---
@@ -91,16 +89,21 @@ if st.session_state.edit_index is not None:
                 raise Exception("Client not initialized")
                 
             if any(keyword in new_prompt.lower() for keyword in ["generate image", "draw", "create an image", "picture of"]):
-                result = client.models.generate_images(
-                    model='imagen-3.0-generate-002',
-                    prompt=new_prompt,
-                    config=types.GenerateImagesConfig(number_of_images=1)
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash-image',
+                    contents=new_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"]
+                    )
                 )
-                for generated_image in result.generated_images:
-                    image = Image.open(BytesIO(generated_image.image.image_bytes))
-                    st.session_state.messages.append({"role": "assistant", "content": image})
-                    break
-                else:
+                image_found = False
+                for part in response.parts:
+                    if part.inline_data:
+                        image = part.as_image()
+                        st.session_state.messages.append({"role": "assistant", "content": image})
+                        image_found = True
+                        break
+                if not image_found:
                     st.session_state.messages.append({"role": "assistant", "content": "Could not generate image."})
             else:
                 response = client.models.generate_content(
@@ -128,16 +131,21 @@ else:
                 raise Exception("Client not initialized")
                 
             if any(keyword in prompt.lower() for keyword in ["generate image", "draw", "create an image", "picture of"]):
-                result = client.models.generate_images(
-                    model='imagen-3.0-generate-002',
-                    prompt=prompt,
-                    config=types.GenerateImagesConfig(number_of_images=1)
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash-image',
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"]
+                    )
                 )
-                for generated_image in result.generated_images:
-                    image = Image.open(BytesIO(generated_image.image.image_bytes))
-                    reply = image
-                    break
-                else:
+                image_found = False
+                for part in response.parts:
+                    if part.inline_data:
+                        image = part.as_image()
+                        reply = image
+                        image_found = True
+                        break
+                if not image_found:
                     reply = "Could not generate image."
             else:
                 response = client.models.generate_content(
@@ -147,7 +155,7 @@ else:
                 )
                 reply = response.text
         except Exception:
-            reply = "Check your API key or connection."
+            reply = "Error: Check your API key or connection."
             
         st.session_state.messages.append({"role": "assistant", "content": reply})
         st.rerun()
