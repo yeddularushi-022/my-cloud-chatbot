@@ -1,5 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from io import BytesIO
 from PIL import Image
 
@@ -32,8 +33,8 @@ st.markdown("<div class='title-container'><h1 class='main-title'>Aether AI</h1><
 # Fetch API Key from Streamlit Secrets
 api_key = st.secrets["GEMINI_API_KEY"].strip() if "GEMINI_API_KEY" in st.secrets else None
 
-if api_key:
-    genai.configure(api_key=api_key)
+# Initialize GenAI Client
+client = genai.Client(api_key=api_key) if api_key else None
 
 # --- STATE INITIALIZATION ---
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -42,7 +43,7 @@ if "edit_index" not in st.session_state: st.session_state.edit_index = None
 # --- SIDEBAR CONTROLS ---
 with st.sidebar:
     st.markdown("### ⚙️ Engine Settings")
-    selected_model = st.selectbox("Choose Model", ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.5-pro"], index=1)
+    selected_model = st.selectbox("Choose Model", ["gemini-2.5-flash", "gemini-2.5-pro"], index=0)
     temperature = st.slider("Temperature (Creativity)", 0.0, 1.0, 0.3, 0.1)
     
     st.markdown("---")
@@ -62,7 +63,6 @@ with st.sidebar:
 # --- DISPLAY CHAT & IMAGES ---
 for idx, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
-        # Check if content is an image or text
         if isinstance(msg["content"], Image.Image):
             st.image(msg["content"], caption="Generated Image", use_column_width=True)
         else:
@@ -87,21 +87,27 @@ if st.session_state.edit_index is not None:
         st.session_state.messages.append({"role": "user", "content": new_prompt})
         
         try:
-            # Check if user wants to generate an image
+            if not client:
+                raise Exception("Client not initialized")
+                
             if any(keyword in new_prompt.lower() for keyword in ["generate image", "draw", "create an image", "picture of"]):
-                image_model = genai.GenerativeModel('imagen-3.0-generate-002')
-                result = image_model.generate_content(new_prompt)
-                # Parse and load image bytes
-                for part in result.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        image = Image.open(BytesIO(part.inline_data.data))
-                        st.session_state.messages.append({"role": "assistant", "content": image})
-                        break
+                result = client.models.generate_images(
+                    model='imagen-3.0-generate-002',
+                    prompt=new_prompt,
+                    config=types.GenerateImagesConfig(number_of_images=1)
+                )
+                for generated_image in result.generated_images:
+                    image = Image.open(BytesIO(generated_image.image.image_bytes))
+                    st.session_state.messages.append({"role": "assistant", "content": image})
+                    break
                 else:
                     st.session_state.messages.append({"role": "assistant", "content": "Could not generate image."})
             else:
-                model = genai.GenerativeModel(model_name=selected_model, generation_config={"temperature": temperature})
-                response = model.generate_content(new_prompt)
+                response = client.models.generate_content(
+                    model=selected_model,
+                    contents=new_prompt,
+                    config=types.GenerateContentConfig(temperature=temperature)
+                )
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
         except Exception:
             st.session_state.messages.append({"role": "assistant", "content": "Error: Check your API key or connection."})
@@ -118,20 +124,27 @@ else:
         st.session_state.messages.append({"role": "user", "content": prompt})
         
         try:
-            # Check if prompt triggers image generation
+            if not client:
+                raise Exception("Client not initialized")
+                
             if any(keyword in prompt.lower() for keyword in ["generate image", "draw", "create an image", "picture of"]):
-                image_model = genai.GenerativeModel('imagen-3.0-generate-002')
-                result = image_model.generate_content(prompt)
-                for part in result.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        image = Image.open(BytesIO(part.inline_data.data))
-                        reply = image
-                        break
+                result = client.models.generate_images(
+                    model='imagen-3.0-generate-002',
+                    prompt=prompt,
+                    config=types.GenerateImagesConfig(number_of_images=1)
+                )
+                for generated_image in result.generated_images:
+                    image = Image.open(BytesIO(generated_image.image.image_bytes))
+                    reply = image
+                    break
                 else:
                     reply = "Could not generate image."
             else:
-                model = genai.GenerativeModel(model_name=selected_model, generation_config={"temperature": temperature})
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model=selected_model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(temperature=temperature)
+                )
                 reply = response.text
         except Exception:
             reply = "Check your API key or connection."
