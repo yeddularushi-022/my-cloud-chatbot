@@ -1,21 +1,17 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
-st.set_page_config(page_title="Aether AI", page_icon="⚡", layout="centered")
+st.set_page_config(page_title="Aether AI Pro", page_icon="⚡", layout="centered")
 
-# --- PREMIUM MODERN CSS ---
+# --- ENHANCED MODERN CSS ---
 st.markdown("""
     <style>
-    /* Global Styling */
     .stApp { background-color: #FAFAFA; font-family: 'Inter', sans-serif; }
-    
-    /* Header Styling */
-    .title-container { text-align: center; margin-top: 2rem; margin-bottom: 2rem; }
+    .title-container { text-align: center; margin-top: 1rem; margin-bottom: 1.5rem; }
     .main-title { font-size: 2.2rem; font-weight: 700; color: #111; }
     .subtitle { color: #666; font-size: 1rem; }
     
-    /* Input Pill Buttons */
+    /* Buttons & Inputs */
     div.stButton > button {
         background: #FFFFFF !important;
         border: 1px solid #E5E7EB !important;
@@ -28,51 +24,97 @@ st.markdown("""
     div.stButton > button:hover { border-color: #3B82F6 !important; color: #3B82F6 !important; }
     
     /* Chat Bubbles */
-    div[data-testid="stChatMessage"] { background: transparent !important; padding: 1rem !important; }
-    div[data-testid="stChatMessageContent"] { background: #FFFFFF; padding: 1.5rem; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    div[data-testid="stChatMessage"] { background: transparent !important; padding: 0.5rem !important; }
+    div[data-testid="stChatMessageContent"] { background: #FFFFFF; padding: 1.2rem; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
     </style>
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
-st.markdown("<div class='title-container'><h1 class='main-title'>Aether AI</h1><p class='subtitle'>Your Intelligent Professional Assistant</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='title-container'><h1 class='main-title'>Aether AI</h1><p class='subtitle'>Your Advanced Intelligent Assistant</p></div>", unsafe_allow_html=True)
 
+# Fetch API Key from Streamlit Secrets
 api_key = st.secrets["GEMINI_API_KEY"].strip() if "GEMINI_API_KEY" in st.secrets else None
 
-# --- SIDEBAR HISTORY ---
-with st.sidebar:
-    st.markdown("### 💬 Recent Sessions")
-    if st.button("✨ New Chat", use_container_width=True): st.session_state.messages = []
+if api_key:
+    genai.configure(api_key=api_key)
 
-# --- INPUT SELECTORS ---
+# --- STATE INITIALIZATION ---
 if "messages" not in st.session_state: st.session_state.messages = []
-if "mode" not in st.session_state: st.session_state.mode = "Text"
+if "edit_index" not in st.session_state: st.session_state.edit_index = None
 
-c1, c2, c3, c4 = st.columns(4)
-if c1.button("💬 Text"): st.session_state.mode = "Text"
-if c2.button("🖼️ Photo"): st.session_state.mode = "Photo"
-if c3.button("📷 Camera"): st.session_state.mode = "Camera"
-if c4.button("🎙️ Voice"): st.session_state.mode = "Voice"
+# --- ADVANCED SIDEBAR CONTROLS ---
+with st.sidebar:
+    st.markdown("### ⚙️ Engine Settings")
+    selected_model = st.selectbox("Choose Model", ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.5-pro"], index=1)
+    temperature = st.slider("Temperature (Creativity)", 0.0, 1.0, 0.3, 0.1)
+    
+    st.markdown("---")
+    st.markdown("### 💬 Session Actions")
+    if st.button("✨ New Chat", use_container_width=True): 
+        st.session_state.messages = []
+        st.session_state.edit_index = None
+        st.rerun()
+        
+    # Export Chat History feature
+    if st.session_state.messages:
+        chat_export = "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in st.session_state.messages])
+        st.download_button("📥 Export Chat", chat_export, file_name="aether_chat_history.txt", mime="text/plain", use_container_width=True)
 
-file = None
-if st.session_state.mode == "Photo": file = st.file_uploader("", type=["jpg", "png"])
-elif st.session_state.mode == "Camera": file = st.camera_input("")
-elif st.session_state.mode == "Voice": file = st.audio_input("")
+    st.markdown("---")
+    st.caption(f"Total Messages: {len(st.session_state.messages)}")
 
-# --- CHAT DISPLAY ---
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]): st.write(msg["content"])
+# --- DISPLAY CHAT & EDIT BUTTONS ---
+for idx, msg in enumerate(st.session_state.messages):
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+        if msg["role"] == "user":
+            if st.button("✏️ Edit", key=f"edit_btn_{idx}"):
+                st.session_state.edit_index = idx
+                st.rerun()
 
-# --- ENGINE ---
-if prompt := st.chat_input("Ask Aether anything..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.write(prompt)
-    with st.chat_message("assistant"):
+# --- HANDLE EDIT MODE OR NEW PROMPT ---
+if st.session_state.edit_index is not None:
+    idx = st.session_state.edit_index
+    old_content = st.session_state.messages[idx]["content"]
+    
+    st.info(f"Editing prompt...")
+    new_prompt = st.text_input("Modify message:", value=old_content, key=f"edit_input_{idx}")
+    
+    col1, col2 = st.columns(2)
+    if col1.button("Save & Resend"):
+        st.session_state.messages = st.session_state.messages[:idx]
+        st.session_state.messages.append({"role": "user", "content": new_prompt})
+        
         try:
-            client = genai.Client(api_key=api_key, http_options={'headers': {'X-Goog-User-Project': 'gen-lang-client-0546112520'}})
-            payload = [prompt]
-            if file: payload.append(types.Part.from_bytes(data=file.getvalue(), mime_type=file.type if hasattr(file, 'type') else 'image/jpeg'))
-            resp = client.models.generate_content(model='gemini-2.5-flash', contents=payload)
-            st.write(resp.text)
-            st.session_state.messages.append({"role": "assistant", "content": resp.text})
-        except Exception as e:
-            st.error("Check your API key or connection.")
+            model = genai.GenerativeModel(
+                model_name=selected_model,
+                generation_config={"temperature": temperature}
+            )
+            response = model.generate_content(new_prompt)
+            st.session_state.messages.append({"role": "assistant", "content": response.text})
+        except Exception:
+            st.session_state.messages.append({"role": "assistant", "content": "Error: Check your API key or connection."})
+            
+        st.session_state.edit_index = None
+        st.rerun()
+        
+    if col2.button("Cancel"):
+        st.session_state.edit_index = None
+        st.rerun()
+
+else:
+    if prompt := st.chat_input("Ask Aether anything..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        try:
+            model = genai.GenerativeModel(
+                model_name=selected_model,
+                generation_config={"temperature": temperature}
+            )
+            response = model.generate_content(prompt)
+            reply = response.text
+        except Exception:
+            reply = "Check your API key or connection."
+            
+        st.session_state.messages.append({"role": "assistant", "content": reply})
+        st.rerun()
