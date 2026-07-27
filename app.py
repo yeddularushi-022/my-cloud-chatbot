@@ -1,7 +1,6 @@
 import streamlit as st
 from google import genai
 from google.genai import types
-from io import BytesIO
 from PIL import Image
 
 st.set_page_config(page_title="Aether AI Pro", page_icon="⚡", layout="centered")
@@ -112,8 +111,8 @@ if st.session_state.edit_index is not None:
                     config=types.GenerateContentConfig(temperature=temperature)
                 )
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
-        except Exception:
-            st.session_state.messages.append({"role": "assistant", "content": "Error: Check your API key or connection."})
+        except Exception as e:
+            st.session_state.messages.append({"role": "assistant", "content": f"Error: {str(e)}"})
             
         st.session_state.edit_index = None
         st.rerun()
@@ -154,8 +153,8 @@ else:
                     config=types.GenerateContentConfig(temperature=temperature)
                 )
                 reply = response.text
-        except Exception:
-            reply = "Error: Check your API key or connection."
+        except Exception as e:
+            reply = f"Error: {str(e)}"
             
         st.session_state.messages.append({"role": "assistant", "content": reply})
         st.rerun()
